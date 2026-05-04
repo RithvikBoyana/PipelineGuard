@@ -1,1 +1,16 @@
 design-docs/
+
+# Backend
+backend/.venv/
+backend/.env
+**/__pycache__/
+**/*.pyc
+
+# Frontend
+frontend/.env.local
+frontend/.next/
+frontend/node_modules/
+
+# General
+.DS_Store
+*.log
