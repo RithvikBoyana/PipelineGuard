@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from datetime import datetime, timedelta
 from models import DealCreate, DealDetail, DealSummary
 from auth import get_current_user
 from db import get_db
+from rate_limit import check_rate_limit
 from services import ai_service
 
 router = APIRouter()
@@ -55,23 +55,7 @@ def get_deal(deal_id: str, user_id: str = Depends(get_current_user)):
 @router.post("/{deal_id}/reanalyze", response_model=DealDetail)
 def reanalyze_deal(deal_id: str, user_id: str = Depends(get_current_user)):
     db = get_db()
-
-    # Check rate limit
-    WEEKLY_LIMIT = 5
-    today = datetime.utcnow()
-    week_start = (today - timedelta(days=today.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
-    used = (
-        db.table("usage_logs")
-        .select("id", count="exact")
-        .eq("user_id", user_id)
-        .gte("created_at", week_start.isoformat())
-        .execute()
-    ).count or 0
-    if used >= WEEKLY_LIMIT:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Weekly analysis limit of {WEEKLY_LIMIT} reached. Resets next Monday.",
-        )
+    check_rate_limit(user_id)
 
     deal_result = (
         db.table("deals").select("id").eq("id", deal_id).eq("user_id", user_id).execute()

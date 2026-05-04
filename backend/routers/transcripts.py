@@ -3,34 +3,10 @@ from typing import Optional
 from models import TranscriptSummary
 from auth import get_current_user
 from db import get_db
+from rate_limit import check_rate_limit
 from services import parser_service, storage_service, ai_service
 
 router = APIRouter()
-
-WEEKLY_ANALYSIS_LIMIT = 5
-
-
-def _check_rate_limit(user_id: str) -> int:
-    db = get_db()
-    from datetime import datetime, timedelta
-    today = datetime.utcnow()
-    week_start = today - timedelta(days=today.weekday())
-    week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
-
-    result = (
-        db.table("usage_logs")
-        .select("id", count="exact")
-        .eq("user_id", user_id)
-        .gte("created_at", week_start.isoformat())
-        .execute()
-    )
-    used = result.count or 0
-    if used >= WEEKLY_ANALYSIS_LIMIT:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Weekly analysis limit of {WEEKLY_ANALYSIS_LIMIT} reached. Resets next Monday.",
-        )
-    return used
 
 
 @router.get("/{deal_id}/transcripts", response_model=list[TranscriptSummary])
@@ -57,7 +33,7 @@ async def upload_transcript(
     if not file and not pasted_text:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provide a file or pasted text.")
 
-    _check_rate_limit(user_id)
+    check_rate_limit(user_id)
     db = get_db()
     deal = _assert_deal_owner(deal_id, user_id)
 

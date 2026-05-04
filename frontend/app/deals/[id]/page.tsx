@@ -146,12 +146,73 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      {(uploading || reanalyzing) && (
+        <>
+          <style>{`
+            @keyframes pgDotWave {
+              0%, 60%, 100% { transform: translateY(0); opacity: 1; }
+              30% { transform: translateY(-10px); opacity: 0.5; }
+            }
+          `}</style>
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 200,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "rgba(0,0,0,0.82)",
+              backdropFilter: "blur(6px)",
+              WebkitBackdropFilter: "blur(6px)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "28px",
+                backgroundColor: "rgba(18,18,26,0.98)",
+                border: "1px solid rgba(255,255,255,0.09)",
+                borderRadius: "16px",
+                padding: "48px 64px",
+                boxShadow: "0 32px 64px -16px rgba(0,0,0,0.9)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                {[0, 180, 360].map((delay, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      display: "block",
+                      width: "10px",
+                      height: "10px",
+                      borderRadius: "50%",
+                      backgroundColor: "#3b82f6",
+                      animation: `pgDotWave 1.2s ease-in-out ${delay}ms infinite`,
+                    }}
+                  />
+                ))}
+              </div>
+              <div style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: "6px" }}>
+                <p style={{ color: "#ffffff", fontWeight: 600, fontSize: "15px", letterSpacing: "-0.01em", margin: 0 }}>
+                  {reanalyzing ? "Re-analyzing deal" : "Analyzing transcript"}
+                </p>
+                <p style={{ color: "rgba(156,163,175,1)", fontSize: "13px", margin: 0 }}>
+                  {reanalyzing ? "Synthesizing signals across all calls" : "This usually takes 10–20 seconds"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
       <header className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 py-4 flex items-center gap-3">
-          <button onClick={() => router.push("/dashboard")} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+          <button onClick={() => router.push("/dashboard")} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <span className="font-semibold">PipelineGuard</span>
+          <span className="font-semibold text-gray-900 dark:text-gray-100">PipelineGuard</span>
         </div>
       </header>
 
@@ -190,7 +251,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
                   disabled={reanalyzing}
                   className="shrink-0 text-sm font-medium text-amber-700 dark:text-amber-400 hover:underline disabled:opacity-50"
                 >
-                  {reanalyzing ? "Analyzing…" : "Re-analyze now"}
+                  Re-analyze now
                 </button>
               </div>
             )}
@@ -218,7 +279,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
           </div>
 
           {uploadMode === "file" ? (
-            <label className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 cursor-pointer transition-colors ${uploading ? "opacity-50 cursor-not-allowed" : "border-gray-300 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600"}`}>
+            <label className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 cursor-pointer transition-colors ${uploading ? "opacity-0 cursor-not-allowed pointer-events-none" : "border-gray-300 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600"}`}>
               <Upload className="h-6 w-6 text-gray-400" />
               <span className="text-sm text-gray-500">{uploading ? "Analyzing…" : "Click to upload or drag and drop"}</span>
               <span className="text-xs text-gray-400">.txt, .pdf, .docx — max 10MB</span>

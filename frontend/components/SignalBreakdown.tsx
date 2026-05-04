@@ -24,8 +24,8 @@ export function SignalBreakdown({ analysis }: SignalBreakdownProps) {
             <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
           )}
           <div className="min-w-0">
-            <p className="text-sm font-medium">{SIGNAL_LABELS[key] ?? key}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{signal.reasoning}</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{SIGNAL_LABELS[key] ?? key}</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400">{signal.reasoning}</p>
           </div>
         </div>
       ))}
