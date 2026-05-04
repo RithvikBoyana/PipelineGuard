@@ -21,6 +21,13 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
   const [pastedText, setPastedText] = useState("");
   const [expandedTranscript, setExpandedTranscript] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ transcriptId: string; isLast: boolean } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [offerReanalyze, setOfferReanalyze] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
+  const [confirmDeleteDeal, setConfirmDeleteDeal] = useState(false);
+  const [deletingDeal, setDeletingDeal] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -73,11 +80,32 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
     }
   }
 
-  async function handleDeleteTranscript(transcriptId: string) {
-    await api.transcripts.delete(id, transcriptId);
-    const [d, t] = await Promise.all([api.deals.get(id), api.transcripts.list(id)]);
-    setDeal(d);
-    setTranscripts(t);
+  function requestDeleteTranscript(transcriptId: string) {
+    setDeleteError(null);
+    setConfirmDelete({ transcriptId, isLast: transcripts.length === 1 });
+  }
+
+  async function confirmDeleteTranscript() {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      if (confirmDelete.isLast) {
+        await api.deals.delete(id);
+        router.push("/dashboard");
+      } else {
+        await api.transcripts.delete(id, confirmDelete.transcriptId);
+        const [d, t] = await Promise.all([api.deals.get(id), api.transcripts.list(id)]);
+        setDeal(d);
+        setTranscripts(t);
+        setConfirmDelete(null);
+        if (t.some(tr => tr.status === "done")) setOfferReanalyze(true);
+      }
+    } catch (err: unknown) {
+      setDeleteError(err instanceof Error ? err.message : "Delete failed");
+      setConfirmDelete(null);
+    } finally {
+      setDeleting(false);
+    }
   }
 
   if (authLoading || loading) return (
@@ -87,6 +115,32 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
   );
 
   if (!deal) return null;
+
+  async function handleDeleteDeal() {
+    setDeletingDeal(true);
+    try {
+      await api.deals.delete(id);
+      router.push("/dashboard");
+    } catch (err: unknown) {
+      setDeleteError(err instanceof Error ? err.message : "Delete failed");
+      setConfirmDeleteDeal(false);
+    } finally {
+      setDeletingDeal(false);
+    }
+  }
+
+  async function handleReanalyze() {
+    setReanalyzing(true);
+    setOfferReanalyze(false);
+    try {
+      const updated = await api.deals.reanalyze(id);
+      setDeal(updated);
+    } catch (err: unknown) {
+      setDeleteError(err instanceof Error ? err.message : "Re-analysis failed");
+    } finally {
+      setReanalyzing(false);
+    }
+  }
 
   const ordinal = (n: number) => ["1st","2nd","3rd"][n - 1] ?? `${n}th`;
 
@@ -110,13 +164,36 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{deal.company_name}</p>
             )}
           </div>
-          <ScoreBadge score={deal.overall_score} size="lg" />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setConfirmDeleteDeal(true)}
+              className="p-1.5 text-gray-400 hover:text-red-500 rounded transition-colors"
+              title="Delete deal"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+            <ScoreBadge score={deal.overall_score} size="lg" />
+          </div>
         </div>
 
         {/* Overall analysis */}
         {deal.overall_analysis && (
           <section className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 space-y-4">
             <h2 className="font-medium text-gray-900 dark:text-gray-100">Overall qualification</h2>
+            {deal.score_stale && (
+              <div className="flex items-center justify-between gap-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-4 py-3">
+                <span className="text-sm text-amber-700 dark:text-amber-400">
+                  Score may not reflect deleted calls. It will update on the next upload.
+                </span>
+                <button
+                  onClick={() => setOfferReanalyze(true)}
+                  disabled={reanalyzing}
+                  className="shrink-0 text-sm font-medium text-amber-700 dark:text-amber-400 hover:underline disabled:opacity-50"
+                >
+                  {reanalyzing ? "Analyzing…" : "Re-analyze now"}
+                </button>
+              </div>
+            )}
             <p className="text-sm text-gray-600 dark:text-gray-400">{deal.overall_analysis.summary}</p>
             <SignalBreakdown analysis={deal.overall_analysis} />
           </section>
@@ -184,7 +261,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
                       {new Date(t.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                     </span>
                     <button
-                      onClick={() => handleDeleteTranscript(t.id)}
+                      onClick={() => requestDeleteTranscript(t.id)}
                       className="p-1 text-gray-400 hover:text-red-500 rounded"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -197,17 +274,119 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
                     </button>
                   </div>
                 </div>
-                {expandedTranscript === t.id && t.individual_analysis && (
-                  <div className="border-t border-gray-100 dark:border-gray-800 px-5 py-4 space-y-3">
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{t.individual_analysis.summary}</p>
-                    <SignalBreakdown analysis={t.individual_analysis} />
+                {expandedTranscript === t.id && (
+                  <div className="border-t border-gray-100 dark:border-gray-800 px-5 py-4 space-y-4">
+                    {t.raw_text && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                            {t.file_name ? `Transcript — ${t.file_name}` : "Transcript"}
+                          </span>
+                        </div>
+                        <pre className="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap font-sans bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 max-h-64 overflow-y-auto">
+                          {t.raw_text}
+                        </pre>
+                      </div>
+                    )}
+                    {t.individual_analysis && (
+                      <div className="space-y-3">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">{t.individual_analysis.summary}</p>
+                        <SignalBreakdown analysis={t.individual_analysis} />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             ))}
           </section>
         )}
+        {deleteError && (
+          <p className="text-sm text-red-500">{deleteError}</p>
+        )}
       </main>
+
+      {confirmDeleteDeal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-6 max-w-sm w-full space-y-4 shadow-xl">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100">Delete this deal?</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              This will permanently delete <span className="font-medium text-gray-900 dark:text-gray-100">{deal.name}</span> and all {transcripts.length > 0 ? `${transcripts.length} call${transcripts.length !== 1 ? "s" : ""} and ` : ""}their analyses. This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmDeleteDeal(false)}
+                disabled={deletingDeal}
+                className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteDeal}
+                disabled={deletingDeal}
+                className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deletingDeal ? "Deleting…" : "Delete deal"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {offerReanalyze && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-6 max-w-sm w-full space-y-4 shadow-xl">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100">Re-analyze deal?</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              The overall score may not reflect your remaining calls after the deletion. Re-analyzing now will use 1 of your weekly analysis slots. You can also skip — the score will update automatically on your next transcript upload.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setOfferReanalyze(false)}
+                className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
+                Skip for now
+              </button>
+              <button
+                onClick={handleReanalyze}
+                className="px-4 py-2 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700"
+              >
+                Re-analyze (uses 1 slot)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-6 max-w-sm w-full space-y-4 shadow-xl">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+              {confirmDelete.isLast ? "Delete entire deal?" : "Delete this call?"}
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {confirmDelete.isLast
+                ? "This is the only call in this deal. Deleting it will permanently remove the entire deal and all its data. This cannot be undone."
+                : "This will permanently delete this call and its analysis. Any calls after it will be renumbered."}
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                disabled={deleting}
+                className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteTranscript}
+                disabled={deleting}
+                className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? "Deleting…" : confirmDelete.isLast ? "Delete deal" : "Delete call"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

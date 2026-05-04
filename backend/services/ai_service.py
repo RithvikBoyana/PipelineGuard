@@ -66,5 +66,16 @@ def analyze_aggregate(transcripts: list[dict]) -> AnalysisResult:
 
 You are analyzing ALL transcripts for a single deal to produce an overall qualification score.
 Use the best evidence found across ALL calls — a signal confirmed in any call counts as present.
-Respond with the same JSON schema as for individual analysis."""
+Respond with a JSON object matching this exact schema:
+{{
+  "score": <integer 0-5>,
+  "summary": "<one paragraph natural language summary>",
+  "signals": {{
+    "decision_maker": {{"present": <bool>, "score": <0 or 1>, "reasoning": "<one sentence citing transcript evidence>"}},
+    "problem_articulation": {{"present": <bool>, "score": <0 or 1>, "reasoning": "<one sentence>"}},
+    "budget_authority": {{"present": <bool>, "score": <0 or 1>, "reasoning": "<one sentence>"}},
+    "urgency": {{"present": <bool>, "score": <0 or 1>, "reasoning": "<one sentence>"}},
+    "next_steps": {{"present": <bool>, "score": <0 or 1>, "reasoning": "<one sentence>"}}
+  }}
+}}"""
     return _call_model(system, f"ALL TRANSCRIPTS:\n\n{combined}")

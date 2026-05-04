@@ -70,7 +70,7 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 py-4 flex items-center justify-between">
-          <span className="font-semibold text-lg">PipelineGuard</span>
+          <span className="font-semibold text-lg text-gray-900 dark:text-gray-100">PipelineGuard</span>
           <div className="flex items-center gap-3">
             {usage && (
               <span className="text-xs text-gray-400 dark:text-gray-500">
@@ -103,13 +103,13 @@ export default function DashboardPage() {
               placeholder="Search deals…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-9 pr-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as "date" | "score")}
-            className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="date">Newest first</option>
             <option value="score">Highest score</option>

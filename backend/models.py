@@ -26,6 +26,7 @@ class DealSummary(BaseModel):
     company_name: Optional[str]
     overall_score: Optional[float]
     transcript_count: int
+    score_stale: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -39,6 +40,7 @@ class TranscriptSummary(BaseModel):
     deal_id: str
     call_number: int
     file_name: Optional[str]
+    raw_text: Optional[str]
     individual_score: Optional[float]
     individual_analysis: Optional[AnalysisResult]
     status: str

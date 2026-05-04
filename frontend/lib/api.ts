@@ -36,6 +36,7 @@ export const api = {
     create: (payload: { name: string; company_name?: string }) =>
       request<Deal>("/deals", { method: "POST", body: JSON.stringify(payload) }),
     delete: (id: string) => request<void>(`/deals/${id}`, { method: "DELETE" }),
+    reanalyze: (id: string) => request<DealDetail>(`/deals/${id}/reanalyze`, { method: "POST" }),
   },
   transcripts: {
     list: (dealId: string) => request<Transcript[]>(`/deals/${dealId}/transcripts`),
@@ -85,6 +86,7 @@ export interface Deal {
   company_name: string | null;
   overall_score: number | null;
   transcript_count: number;
+  score_stale: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -98,6 +100,7 @@ export interface Transcript {
   deal_id: string;
   call_number: number;
   file_name: string | null;
+  raw_text: string | null;
   individual_score: number | null;
   individual_analysis: AnalysisResult | null;
   status: "pending" | "analyzing" | "done" | "error";

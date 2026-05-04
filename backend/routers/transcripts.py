@@ -74,11 +74,12 @@ async def upload_transcript(
         file_name = file.filename
         file_path = None  # set after storage upload below
 
-    # Determine call number
+    # Determine call number — only count successfully analyzed transcripts
     count_result = (
         db.table("transcripts")
         .select("id", count="exact")
         .eq("deal_id", deal_id)
+        .eq("status", "done")
         .execute()
     )
     call_number = (count_result.count or 0) + 1
@@ -135,6 +136,7 @@ async def upload_transcript(
         "overall_score": aggregate.score,
         "overall_analysis": aggregate.model_dump(),
         "transcript_count": call_number,
+        "score_stale": False,
         "updated_at": "now()",
     }).eq("id", deal_id).execute()
 
@@ -152,19 +154,57 @@ async def upload_transcript(
 def delete_transcript(deal_id: str, transcript_id: str, user_id: str = Depends(get_current_user)):
     db = get_db()
     _assert_deal_owner(deal_id, user_id)
+
     result = (
         db.table("transcripts")
-        .select("id, file_path")
+        .select("id, file_path, call_number")
         .eq("id", transcript_id)
         .eq("deal_id", deal_id)
-        .single()
         .execute()
     )
     if not result.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transcript not found")
-    if result.data.get("file_path"):
-        storage_service.delete(result.data["file_path"])
+
+    transcript = result.data[0]
+    deleted_call_number = transcript["call_number"]
+
+    if transcript.get("file_path"):
+        try:
+            storage_service.delete(transcript["file_path"])
+        except Exception:
+            pass
+
     db.table("transcripts").delete().eq("id", transcript_id).execute()
+
+    # Renumber any transcripts with a higher call_number
+    higher = (
+        db.table("transcripts")
+        .select("id, call_number")
+        .eq("deal_id", deal_id)
+        .gt("call_number", deleted_call_number)
+        .execute()
+    ).data
+    for t in higher:
+        db.table("transcripts").update({"call_number": t["call_number"] - 1}).eq("id", t["id"]).execute()
+
+    # Update deal transcript_count; clear analysis if no scored transcripts remain
+    remaining = (
+        db.table("transcripts")
+        .select("id", count="exact")
+        .eq("deal_id", deal_id)
+        .eq("status", "done")
+        .execute()
+    ).count or 0
+
+    update_payload: dict = {"transcript_count": remaining}
+    if remaining == 0:
+        update_payload["overall_score"] = None
+        update_payload["overall_analysis"] = None
+        update_payload["score_stale"] = False
+    else:
+        update_payload["score_stale"] = True
+
+    db.table("deals").update(update_payload).eq("id", deal_id).execute()
 
 
 def _assert_deal_owner(deal_id: str, user_id: str) -> dict:
